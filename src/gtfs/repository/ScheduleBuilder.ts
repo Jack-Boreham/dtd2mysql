@@ -97,8 +97,15 @@ export class ScheduleBuilder {
     let arrivalTime, departureTime;
     let unadvertisedArrival = false
     let unadvertisedDeparture = false;
+    // use the real data if possible
+    if (row.actual_timestamp_1 || row.actual_timestamp_2) {
+      let arrivalTimeWithMoment = row.actual_timestamp_1 ? moment(row.actual_timestamp_1).format("HH:mm:ss") : null;
+      let departureTimeWithMoment = row.actual_timestamp_2 ? moment(row.actual_timestamp_2).format("HH:mm:ss") : null;
+      arrivalTime = this.formatTime(arrivalTimeWithMoment, departHour);
+      departureTime = this.formatTime(departureTimeWithMoment, departHour);
+    }
     // if either public time is set, use those
-    if (row.public_arrival_time || row.public_departure_time) {
+    else if (row.public_arrival_time || row.public_departure_time) {
       arrivalTime = this.formatTime(row.public_arrival_time, departHour);
       departureTime = this.formatTime(row.public_departure_time, departHour);
     }

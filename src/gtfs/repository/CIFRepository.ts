@@ -10,6 +10,7 @@ import {ScheduleBuilder, ScheduleResults} from "./ScheduleBuilder";
 import {RouteType} from "../file/Route";
 import {Duration} from "../native/Duration";
 import {FixedLink} from "../file/FixedLink";
+import { RealTime } from "../file/RealTime";
 
 /**
  * Provide access to the CIF/TTIS data in a vaguely GTFS-ish shape.
@@ -71,6 +72,71 @@ export class CIFRepository {
     return results;
   }
 
+  public async getRealTime(): Promise<RealTime[]> {
+    const [results] = await this.db.query<RealTime[]>(`
+    SELECT 
+    Coalesce(tma.schedule_location_id, tmd.schedule_location_id) AS
+    schedule_location_id,
+    Coalesce(Nullif(tma.platform, ''), Nullif(tmd.platform, '')) AS platform,
+    tma.movement_id                                              AS
+    movement_1,
+    tma.event_type                                               AS event_1,
+    tma.variation_status                                         AS
+    variation_status_1,
+    tma.actual_timestamp                                         AS
+    actual_timestamp_1,
+    tma.planned_timestamp                                        AS
+    planned_timestamp_1,
+    tma.timetable_variation                                      AS
+    timetable_variation_1,
+    tma.event_source                                             AS
+    event_source_1,
+    tma.correction_ind                                           AS
+    correction_ind_1,
+    tmd.movement_id                                              AS
+    movement_2,
+    tmd.event_type                                               AS event_2,
+    tmd.variation_status                                         AS
+    variation_status_2,
+    tmd.actual_timestamp                                         AS
+    actual_timestamp_2,
+    tmd.planned_timestamp                                        AS
+    planned_timestamp_2,
+    tmd.timetable_variation                                      AS
+    timetable_variation_2,
+    tmd.event_source                                             AS
+    event_source_2,
+    tmd.correction_ind                                           AS
+    correction_ind_2,
+    Coalesce(tma.loc_stanox, tmd.loc_stanox)                     AS stanox,
+    ta.train_id                                                  AS train_id,
+    'TRUST'                                                      AS source
+FROM   train_activation AS ta
+    LEFT JOIN train_movement AS tma
+          ON ta.activation_id = tma.activation_id
+              AND tma.event_type IN ( 'ARRIVAL', 'DEPARTURE' )
+    LEFT JOIN train_movement AS tmd
+          ON ta.activation_id = tmd.activation_id
+              AND tmd.loc_stanox = tma.loc_stanox
+              AND ( tma.movement_id IS NULL
+                    OR Coalesce(tmd.schedule_location_id, 1) =
+                        Coalesce(tma.schedule_location_id, 1) )
+              AND tmd.event_type != tma.event_type
+WHERE  ta.train_uid IN ( :train_uids )
+    AND ta.tp_origin_timestamp = :starts
+    AND ( ( tma.event_type = 'ARRIVAL'
+            AND tmd.event_type IS NULL )
+          OR ( tma.event_type = 'DEPARTURE'
+                AND tmd.event_type IS NULL )
+          OR ( tmd.event_type = 'DEPARTURE'
+                AND tma.event_type = 'ARRIVAL' ) )
+    AND ( tma.schedule_location_id = tmd.schedule_location_id
+          OR IF(tmd.schedule_location_id IS NULL, '1', '0') = '1' )
+    `);
+
+    return results;
+  }
+
   /**
    * Return the schedules and z trains. These queries probably require some explanation:
    *
@@ -83,42 +149,71 @@ export class CIFRepository {
   public async getSchedules(): Promise<ScheduleResults> {
     const scheduleBuilder = new ScheduleBuilder();
     const query = this.stream.query(`
-      SELECT 
- s.schedule_id as id,
- s.train_uid, 
- e.rsid as retail_train_id, 
- greatest(s.wef_date, COALESCE(s.import_wef_date, s.wef_date)) as runs_from, 
- least(s.weu_date, COALESCE(s.import_weu_date, s.weu_date)) as runs_to,
-SUBSTRING(s.valid_days, 1, 1 ) as monday,
-SUBSTRING(s.valid_days, 2, 1 ) as tuesday,
-SUBSTRING(s.valid_days, 3, 1 ) as wednesday,
-SUBSTRING(s.valid_days, 4, 1 ) as thursday,
-SUBSTRING(s.valid_days, 5, 1 ) as friday,
-SUBSTRING(s.valid_days, 6, 1 ) as saturday,
-SUBSTRING(s.valid_days, 7, 1 ) as sunday,
-loc.crs_code as crs_code, s.stp_indicator as stp_indicator,
-sloc.public_arrival_time, sloc.public_departure_time,
-IF(s.train_status="S", "SS", s.train_category) AS train_category, 
-IFNULL(sloc.scheduled_arrival_time, sloc.scheduled_pass_time) AS scheduled_arrival_time, 
-IFNULL(sloc.scheduled_departure_time, sloc.scheduled_pass_time) AS scheduled_departure_time,
-sloc.platform, e.atoc_code, sloc.schedule_location_id AS stop_id, 
-COALESCE(sloc.activity, "") as activity, s.reservations, s.train_class
-FROM cif_schedule as s 
-LEFT JOIN cif_schedule_extra as e
-	ON e.schedule_id = s.schedule_id
-LEFT JOIN cif_schedule_location as sloc
-	ON sloc.schedule_id = s.schedule_id
-LEFT JOIN master_location as loc
-	ON sloc.tiploc = loc.tiploc
-	
-WHERE 
-	(sloc.schedule_location_id IS NULL OR (loc.crs_code IS NOT NULL AND loc.crs_code != "") )
-	AND s.wef_date < ?
-  AND s.weu_date >= ?
-  AND (s.import_weu_date IS NULL OR (s.import_weu_date > ?) ) AND (s.schedule_type != 'VSTP' OR ?)
+    SELECT 
+    s.schedule_id AS id,
+    s.train_uid, 
+    e.rsid AS retail_train_id, 
+    greatest(s.wef_date, COALESCE(s.import_wef_date, s.wef_date)) AS runs_from, 
+    least(s.weu_date, COALESCE(s.import_weu_date, s.weu_date)) AS runs_to,
+    SUBSTRING(s.valid_days, 1, 1 ) AS monday,
+    SUBSTRING(s.valid_days, 2, 1 ) AS tuesday,
+    SUBSTRING(s.valid_days, 3, 1 ) AS wednesday,
+    SUBSTRING(s.valid_days, 4, 1 ) AS thursday,
+    SUBSTRING(s.valid_days, 5, 1 ) AS friday,
+    SUBSTRING(s.valid_days, 6, 1 ) AS saturday,
+    SUBSTRING(s.valid_days, 7, 1 ) AS sunday,
+    loc.crs_code AS crs_code, s.stp_indicator AS stp_indicator,
+    
+    tma.actual_timestamp AS actual_timestamp_1,
+    tmd.actual_timestamp AS actual_timestamp_2,
+    
+    sloc.public_arrival_time, sloc.public_departure_time,
+    IF(s.train_status="S", "SS", s.train_category) AS train_category, 
+    IFNULL(sloc.scheduled_arrival_time, sloc.scheduled_pass_time) AS scheduled_arrival_time, 
+    IFNULL(sloc.scheduled_departure_time, sloc.scheduled_pass_time) AS scheduled_departure_time,
+    sloc.platform, e.atoc_code, sloc.schedule_location_id AS stop_id, 
+    COALESCE(sloc.activity, "") AS activity, s.reservations, s.train_class
   
-  HAVING runs_to >= runs_from
-ORDER BY stp_indicator DESC, s.schedule_id, sloc.location_order
+  FROM cif_schedule AS s 
+    LEFT JOIN cif_schedule_extra AS e
+      ON e.schedule_id = s.schedule_id
+    LEFT JOIN cif_schedule_location AS sloc
+      ON sloc.schedule_id = s.schedule_id
+    LEFT JOIN master_location AS loc
+      ON sloc.tiploc = loc.tiploc
+      
+    LEFT JOIN train_movement AS tma
+      ON tma.schedule_id = s.schedule_id AND tma.loc_stanox = loc.stanox 
+    LEFT JOIN train_movement AS tmd
+      ON tma.activation_id = tmd.activation_id
+          AND tmd.loc_stanox = tma.loc_stanox
+          AND ( tma.movement_id IS NULL
+            OR Coalesce(tmd.schedule_location_id, 1) =
+               Coalesce(tma.schedule_location_id, 1) )
+          AND tmd.event_type != tma.event_type
+    
+  WHERE 
+    tma.actual_timestamp BETWEEN "2019-06-18" AND "2019-06-19" AND
+    (s.train_uid = "C20030" OR s.train_uid = "C20031" OR s.train_uid = "C20032" OR s.train_uid = "C20013") AND
+    (sloc.schedule_location_id IS NULL OR (loc.crs_code IS NOT NULL AND loc.crs_code != "") )
+    AND s.wef_date < "2019-06-19"
+    AND s.weu_date >= "2019-06-17"
+    AND (s.import_weu_date IS NULL OR (s.import_weu_date > "2019-06-19") ) AND (s.schedule_type != 'VSTP')
+    
+    AND ( ( tma.event_type = 'ARRIVAL'
+           AND tmd.event_type IS NULL )
+                OR ( tma.event_type = 'DEPARTURE'
+                   AND tmd.event_type IS NULL )
+            OR ( tmd.event_type = 'DEPARTURE'
+                    AND tma.event_type = 'ARRIVAL' ) )
+    AND ( tma.schedule_location_id = tmd.schedule_location_id
+       OR IF(tmd.schedule_location_id IS NULL, '1', '0') = '1' )
+    
+    #GROUP BY s.train_uid
+    HAVING runs_to >= runs_from
+    
+  
+  ORDER BY s.train_uid, stp_indicator DESC, s.schedule_id, sloc.location_order
       `, [this.endRange.format("YYYY-MM-DD"), this.startRange.format("YYYY-MM-DD"), this.startRange.format("YYYY-MM-DD"), !this.excludeVstpSchedules]);
       await Promise.all([
       scheduleBuilder.loadSchedules(query),
@@ -277,6 +372,8 @@ export interface ScheduleStopTimeRow {
   crs_code: CRS,
   train_category: string,
   atoc_code: string | null,
+  actual_timestamp_1: Object | null,
+  actual_timestamp_2: Object | null,
   public_arrival_time: string | null,
   public_departure_time: string | null,
   scheduled_arrival_time: string | null,

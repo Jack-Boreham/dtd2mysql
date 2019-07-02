@@ -52,6 +52,7 @@ function applyOverlay(base: OverlayRecord, overlay: OverlayRecord, ids: IdGenera
     return [base];
   }
 
+
   return overlap === OverlapType.Short
     ? base.calendar.addExcludeDays(overlay.calendar).map(calendar => base.clone(calendar, base.id))
     : base.calendar.divideAround(overlay.calendar).map(calendar => base.clone(calendar, ids.next().value));
