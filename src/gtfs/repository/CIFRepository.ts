@@ -10,7 +10,6 @@ import {ScheduleBuilder, ScheduleResults} from "./ScheduleBuilder";
 import {RouteType} from "../file/Route";
 import {Duration} from "../native/Duration";
 import {FixedLink} from "../file/FixedLink";
-import { RealTime } from "../file/RealTime";
 
 /**
  * Provide access to the CIF/TTIS data in a vaguely GTFS-ish shape.
@@ -69,71 +68,6 @@ export class CIFRepository {
     `);
 
     // overlay the long and latitude values from configuration
-    return results;
-  }
-
-  public async getRealTime(): Promise<RealTime[]> {
-    const [results] = await this.db.query<RealTime[]>(`
-    SELECT 
-    Coalesce(tma.schedule_location_id, tmd.schedule_location_id) AS
-    schedule_location_id,
-    Coalesce(Nullif(tma.platform, ''), Nullif(tmd.platform, '')) AS platform,
-    tma.movement_id                                              AS
-    movement_1,
-    tma.event_type                                               AS event_1,
-    tma.variation_status                                         AS
-    variation_status_1,
-    tma.actual_timestamp                                         AS
-    actual_timestamp_1,
-    tma.planned_timestamp                                        AS
-    planned_timestamp_1,
-    tma.timetable_variation                                      AS
-    timetable_variation_1,
-    tma.event_source                                             AS
-    event_source_1,
-    tma.correction_ind                                           AS
-    correction_ind_1,
-    tmd.movement_id                                              AS
-    movement_2,
-    tmd.event_type                                               AS event_2,
-    tmd.variation_status                                         AS
-    variation_status_2,
-    tmd.actual_timestamp                                         AS
-    actual_timestamp_2,
-    tmd.planned_timestamp                                        AS
-    planned_timestamp_2,
-    tmd.timetable_variation                                      AS
-    timetable_variation_2,
-    tmd.event_source                                             AS
-    event_source_2,
-    tmd.correction_ind                                           AS
-    correction_ind_2,
-    Coalesce(tma.loc_stanox, tmd.loc_stanox)                     AS stanox,
-    ta.train_id                                                  AS train_id,
-    'TRUST'                                                      AS source
-FROM   train_activation AS ta
-    LEFT JOIN train_movement AS tma
-          ON ta.activation_id = tma.activation_id
-              AND tma.event_type IN ( 'ARRIVAL', 'DEPARTURE' )
-    LEFT JOIN train_movement AS tmd
-          ON ta.activation_id = tmd.activation_id
-              AND tmd.loc_stanox = tma.loc_stanox
-              AND ( tma.movement_id IS NULL
-                    OR Coalesce(tmd.schedule_location_id, 1) =
-                        Coalesce(tma.schedule_location_id, 1) )
-              AND tmd.event_type != tma.event_type
-WHERE  ta.train_uid IN ( :train_uids )
-    AND ta.tp_origin_timestamp = :starts
-    AND ( ( tma.event_type = 'ARRIVAL'
-            AND tmd.event_type IS NULL )
-          OR ( tma.event_type = 'DEPARTURE'
-                AND tmd.event_type IS NULL )
-          OR ( tmd.event_type = 'DEPARTURE'
-                AND tma.event_type = 'ARRIVAL' ) )
-    AND ( tma.schedule_location_id = tmd.schedule_location_id
-          OR IF(tmd.schedule_location_id IS NULL, '1', '0') = '1' )
-    `);
-
     return results;
   }
 
