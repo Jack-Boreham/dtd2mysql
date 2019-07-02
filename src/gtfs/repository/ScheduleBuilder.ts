@@ -94,13 +94,13 @@ export class ScheduleBuilder {
   }
 
   private createStop(row: ScheduleStopTimeRow, stopId: number, departHour: number): StopTime {
-    let arrivalTime, departureTime;
+    let arrivalTime, departureTime,arrivalTimeWithMoment,departureTimeWithMoment;
     let unadvertisedArrival = false
     let unadvertisedDeparture = false;
-    // use the real data if possible
+    // use the real data if possible converting the DateTime objects fromt the db to the required format.
     if (row.actual_timestamp_1 || row.actual_timestamp_2) {
-      let arrivalTimeWithMoment = row.actual_timestamp_1 ? moment(row.actual_timestamp_1).format("HH:mm:ss") : null;
-      let departureTimeWithMoment = row.actual_timestamp_2 ? moment(row.actual_timestamp_2).format("HH:mm:ss") : null;
+      arrivalTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_1);
+      departureTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_2);
       arrivalTime = this.formatTime(arrivalTimeWithMoment, departHour);
       departureTime = this.formatTime(departureTimeWithMoment, departHour);
     }
@@ -142,6 +142,15 @@ export class ScheduleBuilder {
       shape_dist_traveled: null,
       timepoint: 1
     };
+  }
+
+  private formatRealTimeStamp(timeStamp: Object | null){
+    if (timeStamp===null) {
+      return null;
+    } else {
+      timeStamp = moment(timeStamp).format("HH:mm:ss");
+      return timeStamp;
+    }
   }
 
   private formatTime(time: string | null, originDepartureHour: number) {
