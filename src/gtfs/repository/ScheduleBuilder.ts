@@ -95,7 +95,7 @@ export class ScheduleBuilder {
 
   private createStop(row: ScheduleStopTimeRow, stopId: number, departHour: number): StopTime {
     let arrivalTime, departureTime,arrivalTimeWithMoment,departureTimeWithMoment;
-    let unadvertisedArrival = false
+    let unadvertisedArrival = false;
     let unadvertisedDeparture = false;
     // use the real data if possible converting the DateTime objects fromt the db to the required format.
     if (row.actual_timestamp_1 || row.actual_timestamp_2) {
