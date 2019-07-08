@@ -83,12 +83,8 @@ export class CIFRepository {
   public async getSchedules(): Promise<ScheduleResults> {
     const scheduleBuilder = new ScheduleBuilder();
     const query = this.stream.query(`
-<<<<<<< HEAD
-SELECT
-=======
 
     SELECT 
->>>>>>> e7fc4fd22944ab3d3aa2383920a38b7bad2b802c
     s.schedule_id AS id,
     s.train_uid,
     e.rsid AS retail_train_id,
