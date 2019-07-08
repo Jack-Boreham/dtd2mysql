@@ -83,7 +83,12 @@ export class CIFRepository {
   public async getSchedules(): Promise<ScheduleResults> {
     const scheduleBuilder = new ScheduleBuilder();
     const query = this.stream.query(`
+<<<<<<< HEAD
 SELECT
+=======
+
+    SELECT 
+>>>>>>> e7fc4fd22944ab3d3aa2383920a38b7bad2b802c
     s.schedule_id AS id,
     s.train_uid,
     e.rsid AS retail_train_id,
@@ -114,25 +119,25 @@ FROM cif_schedule AS s
     LEFT JOIN cif_schedule_location AS sloc
         ON sloc.schedule_id = s.schedule_id
     LEFT JOIN master_location AS loc
-        ON sloc.tiploc = loc.tiploc
-        
+      ON sloc.tiploc = loc.tiploc
+          
+    LEFT JOIN train_activation as ta
+      ON ta.train_uid = s.train_uid
     LEFT JOIN train_movement AS tma
-        ON tma.schedule_id = s.schedule_id AND tma.loc_stanox = loc.stanox
+      ON tma.loc_stanox = loc.stanox AND tma.activation_id = ta.activation_id AND tma.event_type IN ( 'ARRIVAL', 'DEPARTURE' )
     LEFT JOIN train_movement AS tmd
-        ON tma.activation_id = tmd.activation_id
+      ON ta.activation_id = tmd.activation_id
           AND tmd.loc_stanox = tma.loc_stanox
           AND ( tma.movement_id IS NULL
               OR Coalesce(tmd.schedule_location_id, 1) =
                  Coalesce(tma.schedule_location_id, 1) )
           AND tmd.event_type != tma.event_type
-    LEFT JOIN train_activation as ta
-        ON ta.activation_id = tma.activation_id
-    
-WHERE
+            
+  WHERE 
     ta.tp_origin_timestamp = "2019-06-18" AND
     (sloc.schedule_location_id IS NULL OR (loc.crs_code IS NOT NULL AND loc.crs_code != "") )
-    AND (s.import_weu_date IS NULL OR (s.import_weu_date > "2019-06-19") ) AND (s.schedule_type != 'VSTP')
-
+    AND (s.import_weu_date IS NULL OR (s.import_weu_date > "2019-06-18") ) AND (s.schedule_type != 'VSTP' OR ?)
+    
     AND ( ( tma.event_type = 'ARRIVAL'
               AND tmd.event_type IS NULL )
                OR ( tma.event_type = 'DEPARTURE'
@@ -140,14 +145,13 @@ WHERE
                     OR ( tmd.event_type = 'DEPARTURE'
                  AND tma.event_type = 'ARRIVAL' ) )
     AND ( tma.schedule_location_id = tmd.schedule_location_id
-      OR IF(tmd.schedule_location_id IS NULL, '1', '0') = '1' )
-
-
-
+       OR IF(tmd.schedule_location_id IS NULL, '1', '0') = '1' )
+     
     HAVING runs_to >= runs_from
-
-ORDER BY  stp_indicator DESC,s.schedule_id, sloc.location_order
-      `, [this.endRange.format("YYYY-MM-DD"), this.startRange.format("YYYY-MM-DD"), this.startRange.format("YYYY-MM-DD"), !this.excludeVstpSchedules]);
+  
+  
+  ORDER BY stp_indicator DESC, s.schedule_id, sloc.location_order
+      `, [!this.excludeVstpSchedules]);
       await Promise.all([
       scheduleBuilder.loadSchedules(query),
       // scheduleBuilder.loadSchedules(this.stream.query(`

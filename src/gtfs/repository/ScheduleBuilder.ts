@@ -94,15 +94,18 @@ export class ScheduleBuilder {
   }
 
   private createStop(row: ScheduleStopTimeRow, stopId: number, departHour: number): StopTime {
-    let arrivalTime, departureTime,arrivalTimeWithMoment,departureTimeWithMoment;
+    let arrivalTime, departureTime;
     let unadvertisedArrival = false;
     let unadvertisedDeparture = false;
     // use the real data if possible converting the DateTime objects fromt the db to the required format.
     if (row.actual_timestamp_1 || row.actual_timestamp_2) {
-      arrivalTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_1);
-      departureTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_2);
-      arrivalTime = this.formatTime(arrivalTimeWithMoment, departHour);
-      departureTime = this.formatTime(departureTimeWithMoment, departHour);
+      let arrivalTimeWithMoment = row.actual_timestamp_1 ? moment(row.actual_timestamp_1).format("HH:mm:ss") : null;
+      let departureTimeWithMoment = row.actual_timestamp_2 ? moment(row.actual_timestamp_2).format("HH:mm:ss") : null;
+      let t1DepartHour = (arrivalTimeWithMoment != null) ? parseInt(arrivalTimeWithMoment.substr(0, 2), 10) : 4;
+      let t2DepartHour = (departureTimeWithMoment != null) ? parseInt(departureTimeWithMoment.substr(0, 2), 10) : 4;
+
+      arrivalTime = this.formatTime(arrivalTimeWithMoment, t1DepartHour);
+      departureTime = this.formatTime(departureTimeWithMoment, t2DepartHour);
     }
     // if either public time is set, use those
     else if (row.public_arrival_time || row.public_departure_time) {
