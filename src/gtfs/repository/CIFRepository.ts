@@ -83,11 +83,11 @@ export class CIFRepository {
   public async getSchedules(): Promise<ScheduleResults> {
     const scheduleBuilder = new ScheduleBuilder();
     const query = this.stream.query(`
-    SELECT 
+SELECT
     s.schedule_id AS id,
-    s.train_uid, 
-    e.rsid AS retail_train_id, 
-    greatest(s.wef_date, COALESCE(s.import_wef_date, s.wef_date)) AS runs_from, 
+    s.train_uid,
+    e.rsid AS retail_train_id,
+    greatest(s.wef_date, COALESCE(s.import_wef_date, s.wef_date)) AS runs_from,
     least(s.weu_date, COALESCE(s.import_weu_date, s.weu_date)) AS runs_to,
     SUBSTRING(s.valid_days, 1, 1 ) AS monday,
     SUBSTRING(s.valid_days, 2, 1 ) AS tuesday,
@@ -102,52 +102,51 @@ export class CIFRepository {
     tmd.actual_timestamp AS actual_timestamp_2,
     
     sloc.public_arrival_time, sloc.public_departure_time,
-    IF(s.train_status="S", "SS", s.train_category) AS train_category, 
-    IFNULL(sloc.scheduled_arrival_time, sloc.scheduled_pass_time) AS scheduled_arrival_time, 
+    IF(s.train_status="S", "SS", s.train_category) AS train_category,
+    IFNULL(sloc.scheduled_arrival_time, sloc.scheduled_pass_time) AS scheduled_arrival_time,
     IFNULL(sloc.scheduled_departure_time, sloc.scheduled_pass_time) AS scheduled_departure_time,
-    sloc.platform, e.atoc_code, sloc.schedule_location_id AS stop_id, 
+    sloc.platform, e.atoc_code, sloc.schedule_location_id AS stop_id,
     COALESCE(sloc.activity, "") AS activity, s.reservations, s.train_class
-  
-  FROM cif_schedule AS s 
+
+FROM cif_schedule AS s
     LEFT JOIN cif_schedule_extra AS e
-      ON e.schedule_id = s.schedule_id
+        ON e.schedule_id = s.schedule_id
     LEFT JOIN cif_schedule_location AS sloc
-      ON sloc.schedule_id = s.schedule_id
+        ON sloc.schedule_id = s.schedule_id
     LEFT JOIN master_location AS loc
-      ON sloc.tiploc = loc.tiploc
-      
+        ON sloc.tiploc = loc.tiploc
+        
     LEFT JOIN train_movement AS tma
-      ON tma.schedule_id = s.schedule_id AND tma.loc_stanox = loc.stanox 
+        ON tma.schedule_id = s.schedule_id AND tma.loc_stanox = loc.stanox
     LEFT JOIN train_movement AS tmd
-      ON tma.activation_id = tmd.activation_id
+        ON tma.activation_id = tmd.activation_id
           AND tmd.loc_stanox = tma.loc_stanox
           AND ( tma.movement_id IS NULL
-            OR Coalesce(tmd.schedule_location_id, 1) =
-               Coalesce(tma.schedule_location_id, 1) )
+              OR Coalesce(tmd.schedule_location_id, 1) =
+                 Coalesce(tma.schedule_location_id, 1) )
           AND tmd.event_type != tma.event_type
+    LEFT JOIN train_activation as ta
+        ON ta.activation_id = tma.activation_id
     
-  WHERE 
-    tma.actual_timestamp BETWEEN "2019-06-18" AND "2019-06-19" AND
-    (s.train_uid = "C20030" OR s.train_uid = "C20031" OR s.train_uid = "C20032" OR s.train_uid = "C20013") AND
+WHERE
+    ta.tp_origin_timestamp = "2019-06-18" AND
     (sloc.schedule_location_id IS NULL OR (loc.crs_code IS NOT NULL AND loc.crs_code != "") )
-    AND s.wef_date < "2019-06-19"
-    AND s.weu_date >= "2019-06-17"
     AND (s.import_weu_date IS NULL OR (s.import_weu_date > "2019-06-19") ) AND (s.schedule_type != 'VSTP')
-    
+
     AND ( ( tma.event_type = 'ARRIVAL'
-           AND tmd.event_type IS NULL )
-                OR ( tma.event_type = 'DEPARTURE'
-                   AND tmd.event_type IS NULL )
-            OR ( tmd.event_type = 'DEPARTURE'
-                    AND tma.event_type = 'ARRIVAL' ) )
+              AND tmd.event_type IS NULL )
+               OR ( tma.event_type = 'DEPARTURE'
+                  AND tmd.event_type IS NULL )
+                    OR ( tmd.event_type = 'DEPARTURE'
+                 AND tma.event_type = 'ARRIVAL' ) )
     AND ( tma.schedule_location_id = tmd.schedule_location_id
-       OR IF(tmd.schedule_location_id IS NULL, '1', '0') = '1' )
-    
-    #GROUP BY s.train_uid
+      OR IF(tmd.schedule_location_id IS NULL, '1', '0') = '1' )
+
+
+
     HAVING runs_to >= runs_from
-    
-  
-  ORDER BY s.train_uid, stp_indicator DESC, s.schedule_id, sloc.location_order
+
+ORDER BY  stp_indicator DESC,s.schedule_id, sloc.location_order
       `, [this.endRange.format("YYYY-MM-DD"), this.startRange.format("YYYY-MM-DD"), this.startRange.format("YYYY-MM-DD"), !this.excludeVstpSchedules]);
       await Promise.all([
       scheduleBuilder.loadSchedules(query),
