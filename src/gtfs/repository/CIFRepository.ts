@@ -99,8 +99,10 @@ export class CIFRepository {
     SUBSTRING(s.valid_days, 7, 1 ) AS sunday,
     loc.crs_code AS crs_code, s.stp_indicator AS stp_indicator,
     
+    tma.event_type AS event_type,
     tma.actual_timestamp AS actual_timestamp_1,
     tmd.actual_timestamp AS actual_timestamp_2,
+
     
     sloc.public_arrival_time, sloc.public_departure_time,
     IF(s.train_status="S", "SS", s.train_category) AS train_category,
@@ -146,7 +148,7 @@ FROM cif_schedule AS s
     HAVING runs_to >= runs_from
   
   
-  ORDER BY stp_indicator DESC, s.schedule_id, sloc.location_order
+  ORDER BY  stp_indicator DESC, s.schedule_id, sloc.location_order
       `, [!this.excludeVstpSchedules]);
       await Promise.all([
       scheduleBuilder.loadSchedules(query),
@@ -305,6 +307,7 @@ export interface ScheduleStopTimeRow {
   crs_code: CRS,
   train_category: string,
   atoc_code: string | null,
+  event_type: string,
   actual_timestamp_1: Object | null,
   actual_timestamp_2: Object | null,
   public_arrival_time: string | null,

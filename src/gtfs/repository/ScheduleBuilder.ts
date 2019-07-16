@@ -25,6 +25,7 @@ export class ScheduleBuilder {
     return new Promise<void>((resolve, reject) => {
       let stops: StopTime[] = [];
       let prevRow: ScheduleStopTimeRow;
+      let arrivalTimeWithMoment,departureTimeWithMoment;
       let departureHour = 4;
 
       results.on("result", (row: ScheduleStopTimeRow) => {
@@ -32,8 +33,15 @@ export class ScheduleBuilder {
           this.schedules.push(this.createSchedule(prevRow, stops));
           stops = [];
 
-          departureHour = row.public_arrival_time
-            ? parseInt(row.public_arrival_time.substr(0, 2), 10)
+          //Code below sets the departure hour from the real time data to avoid instances of trains arriving before they leave.
+          arrivalTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_1);
+          departureTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_2); 
+
+          //If no real time data available, use public arrival/departure time to set departure hour.
+          departureHour = arrivalTimeWithMoment
+            ? parseInt(arrivalTimeWithMoment.substr(0, 2), 10)
+            : departureTimeWithMoment ? parseInt(departureTimeWithMoment.substr(0, 2), 10)
+            : row.public_arrival_time ? parseInt(row.public_arrival_time.substr(0, 2), 10)
             : row.public_departure_time ? parseInt(row.public_departure_time.substr(0, 2), 10) : 4;
         }
 
@@ -102,11 +110,16 @@ export class ScheduleBuilder {
 
       arrivalTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_1);
       departureTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_2);
-      let t1DepartHour = (arrivalTimeWithMoment != null) ? parseInt(arrivalTimeWithMoment.substr(0, 2), 10) : 4;
-      let t2DepartHour = (departureTimeWithMoment != null) ? parseInt(departureTimeWithMoment.substr(0, 2), 10) : 4;
+      arrivalTime = this.formatTime(arrivalTimeWithMoment, departHour);
+      departureTime = this.formatTime(departureTimeWithMoment, departHour);
 
-      arrivalTime = this.formatTime(arrivalTimeWithMoment, t1DepartHour);
-      departureTime = this.formatTime(departureTimeWithMoment, t2DepartHour);
+      //Minor formatting
+      if (row.event_type === 'DEPARTURE' && departureTime === null){
+        departureTime = arrivalTime;
+        arrivalTime = null;
+      }
+
+
     }
     // if either public time is set, use those
     else if (row.public_arrival_time || row.public_departure_time) {
@@ -133,7 +146,11 @@ export class ScheduleBuilder {
     const pickup = pickupActivities.find(a => activities.includes(a)) && !activities.includes(notAdvertised) && !unadvertisedDeparture ? 0 : 1;
     const coordinatedDropOff = coordinatedActivity.find(a => activities.includes(a)) ? 3 : 0;
     const dropOff = dropOffActivities.find(a => activities.includes(a)) && !unadvertisedArrival ? 0 : 1;
-    
+
+    //Mittigating against timestamps at passing stations which have recorded the departure time before the arrival time.
+    if ((departureTime < arrivalTime) && (departureTime !== null)){
+      arrivalTime = departureTime;
+    }
     return {
       trip_id: row.id,
       arrival_time: (arrivalTime || departureTime),
