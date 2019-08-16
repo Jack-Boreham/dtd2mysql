@@ -33,14 +33,14 @@ export class ScheduleBuilder {
         if (prevRow && prevRow.id !== row.id) {
           this.schedules.push(this.createSchedule(prevRow, stops));
           stops = [];
-          ​
-          // Code below sets the departure hour from the real time data to avoid instances of trains arriving before they leave.
+
+          //Code below sets the departure hour from the real time data to avoid instances of trains arriving before they leave.
           arrivalTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_1);
-          departureTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_2);
-​
-          // If no real time data available, use public arrival/departure time to set departure hour.
-          departureHour = 
-            arrivalTimeWithMoment ? parseInt(arrivalTimeWithMoment.substr(0, 2), 10)
+          departureTimeWithMoment = this.formatRealTimeStamp(row.actual_timestamp_2); 
+
+          //If no real time data available, use public arrival/departure time to set departure hour.
+          departureHour = arrivalTimeWithMoment
+            ? parseInt(arrivalTimeWithMoment.substr(0, 2), 10)
             : departureTimeWithMoment ? parseInt(departureTimeWithMoment.substr(0, 2), 10)
             : row.public_arrival_time ? parseInt(row.public_arrival_time.substr(0, 2), 10)
             : row.public_departure_time ? parseInt(row.public_departure_time.substr(0, 2), 10) : 4;
